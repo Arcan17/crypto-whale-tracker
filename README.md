@@ -131,6 +131,10 @@ Returns application health and WebSocket connection status.
 
 Returns aggregated statistics for the current UTC day.
 
+```bash
+curl http://localhost:8081/stats
+```
+
 ```json
 {
   "total_alerts_today": 14,
@@ -148,18 +152,22 @@ Returns aggregated statistics for the current UTC day.
 
 Paginated list of stored whale transactions with optional token filter.
 
+```bash
+curl "http://localhost:8081/transactions?limit=3&token=USDC"
+```
+
 ```json
 {
   "total": 142,
   "skip": 0,
-  "limit": 20,
+  "limit": 3,
   "transactions": [
     {
       "id": 142,
-      "tx_hash": "0xabc...def",
-      "from_address": "0x28C6...1d60",
+      "tx_hash": "0x3f4a1c2b8e9d0f5a7b6c3e2d1a0f9e8d7c6b5a4f3e2d1c0b9a8f7e6d5c4b3a2",
+      "from_address": "0x28C6c06298d514Db089934071355E5743bf21d60",
       "from_label": "Binance Hot Wallet",
-      "to_address": "0x9f3a...b12c",
+      "to_address": "0x9f3a4b2c1d8e7f6a5b4c3d2e1f0a9b8c7d6e5f4a",
       "to_label": "Unknown Wallet",
       "value_eth": "400.00000000",
       "value_usd": "1200000.00",
@@ -228,6 +236,19 @@ tests/test_labeler.py::test_known_exchange_address_returns_label         PASSED
 ...
 18 passed in 0.XXs
 ```
+
+---
+
+## Why This Project Matters for Crypto Jobs
+
+Most backend developers can build CRUD APIs. Far fewer have worked directly with:
+
+- **Live blockchain data** — streaming thousands of pending transactions per second via WebSocket
+- **on-chain address intelligence** — labeling wallets as exchanges, DeFi protocols, or bridges
+- **Low-latency event pipelines** — fire-and-forget coroutines keeping detection under 700ms
+- **Production trading infrastructure patterns** — health checks, audit trails, reconnect logic
+
+This project demonstrates the exact skills used by teams at on-chain analytics firms (Nansen, Arkham), crypto exchanges, and DeFi protocols building real-time monitoring and risk systems.
 
 ---
 

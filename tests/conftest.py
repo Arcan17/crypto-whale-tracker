@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from decimal import Decimal
 from typing import Optional
 from unittest.mock import AsyncMock, patch
 
@@ -121,7 +120,6 @@ def make_erc20_log(
     Returns:
         A log dict in the format returned by web3.py.
     """
-    from web3 import Web3
     from analysis.filter import TRANSFER_TOPIC
 
     def _pad(addr: str) -> str:

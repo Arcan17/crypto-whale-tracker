@@ -19,7 +19,7 @@ from api.main import app as fastapi_app
 from api.main import set_feed
 from config.settings import Settings, get_settings
 from feeds.ethereum_feed import EthereumFeed
-from models.database import SessionLocal, Transaction, init_db
+from models.database import SessionLocal, init_db
 
 logger = logging.getLogger(__name__)
 

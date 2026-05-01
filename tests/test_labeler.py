@@ -1,9 +1,7 @@
 """Tests for analysis.labeler — address labelling and direction detection."""
 
-import pytest
 
 from analysis.labeler import (
-    KNOWN_WALLETS,
     get_category,
     get_direction,
     get_label,

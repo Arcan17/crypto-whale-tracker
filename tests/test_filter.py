@@ -1,7 +1,5 @@
 """Tests for analysis.filter.TransactionFilter."""
 
-import time
-from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest

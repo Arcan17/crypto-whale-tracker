@@ -8,7 +8,6 @@ from datetime import datetime, timezone
 from typing import Any, Generator, Optional
 
 from fastapi import Depends, FastAPI, Query
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from models.database import SessionLocal, Transaction
