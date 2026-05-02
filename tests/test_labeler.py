@@ -1,6 +1,5 @@
 """Tests for analysis.labeler — address labelling and direction detection."""
 
-
 from analysis.labeler import (
     get_category,
     get_direction,
