@@ -8,6 +8,15 @@ from typing import List
 
 from dotenv import load_dotenv
 
+
+def _env_bool(name: str, default: bool = False) -> bool:
+    """Return a boolean setting parsed from common environment values."""
+    raw_value = os.getenv(name)
+    if raw_value is None:
+        return default
+    return raw_value.strip().lower() in {"1", "true", "yes", "on"}
+
+
 load_dotenv()
 
 
@@ -22,6 +31,7 @@ class Settings:
         MIN_WHALE_USD: Minimum USD value to qualify a transaction as a whale alert.
         DATABASE_URL: SQLAlchemy-compatible database connection string.
         HEALTH_PORT: Port for the FastAPI health/stats server.
+        DEMO_MODE: Run the API without connecting to live Ethereum services.
         LOG_LEVEL: Python logging level (DEBUG, INFO, WARNING, ERROR).
         MONITOR_TOKENS: List of token symbols to monitor.
     """
@@ -32,6 +42,7 @@ class Settings:
     MIN_WHALE_USD: float = 500_000.0
     DATABASE_URL: str = "sqlite:///./data/whales.db"
     HEALTH_PORT: int = 8080
+    DEMO_MODE: bool = False
     LOG_LEVEL: str = "INFO"
     MONITOR_TOKENS: List[str] = field(
         default_factory=lambda: ["ETH", "USDT", "USDC", "WETH"]
@@ -56,6 +67,7 @@ def get_settings() -> Settings:
         MIN_WHALE_USD=float(os.getenv("MIN_WHALE_USD", "500000")),
         DATABASE_URL=os.getenv("DATABASE_URL", "sqlite:///./data/whales.db"),
         HEALTH_PORT=int(os.getenv("HEALTH_PORT", "8080")),
+        DEMO_MODE=_env_bool("DEMO_MODE", False),
         LOG_LEVEL=os.getenv("LOG_LEVEL", "INFO"),
         MONITOR_TOKENS=monitor_tokens,
     )

@@ -94,6 +94,42 @@ cp .env.example .env
 python main.py
 ```
 
+### Demo mode (no Alchemy or Ethereum credentials)
+
+Demo mode runs the API against seeded sample whale transactions and skips the
+live Ethereum WebSocket feed, so you can explore the project without Alchemy,
+Ethereum, or Telegram credentials. The sample data is synthetic and contains no
+private keys, seed phrases, API keys, or other secrets.
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
+# Use any SQLAlchemy database URL; SQLite is the easiest local option.
+export DEMO_MODE=true
+export DATABASE_URL=sqlite:///./data/demo_whales.db
+
+# Insert deterministic sample whale transactions. Safe to run more than once.
+python scripts/seed_demo_data.py
+
+# Start the API without connecting to Alchemy or Ethereum.
+python main.py
+
+# Start/view the dashboard: open the interactive API dashboard in a browser.
+# http://localhost:8080/docs
+```
+
+You can also query demo data directly:
+
+```bash
+curl http://localhost:8080/stats
+curl "http://localhost:8080/transactions?limit=10"
+```
+
+To return to live mode, unset `DEMO_MODE` or set `DEMO_MODE=false`, configure
+`ALCHEMY_WS_URL`, and start the application normally.
+
 ---
 
 ## Configuration
@@ -108,6 +144,7 @@ All settings are loaded from environment variables (or a `.env` file).
 | `MIN_WHALE_USD`     | Minimum USD value to trigger an alert               | `500000`                                        |
 | `DATABASE_URL`      | SQLAlchemy connection string                        | `sqlite:///./data/whales.db`                    |
 | `HEALTH_PORT`       | Port for the FastAPI server                         | `8080`                                          |
+| `DEMO_MODE`        | Skip live Ethereum feed and run API against seeded data | `false`                                     |
 | `LOG_LEVEL`         | Python logging level                                | `INFO`                                          |
 | `MONITOR_TOKENS`    | Comma-separated list of token symbols to monitor    | `ETH,USDT,USDC,WETH`                            |
 
@@ -198,13 +235,17 @@ crypto-whale-tracker/
 │   └── telegram_alert.py    # MarkdownV2 Telegram notifications
 ├── models/
 │   └── database.py          # SQLAlchemy ORM models + session factory
+├── scripts/
+│   └── seed_demo_data.py    # Idempotent demo transaction seeder
 ├── api/
 │   └── main.py              # FastAPI endpoints (/health /stats /transactions)
 ├── tests/
 │   ├── conftest.py          # Shared fixtures and helpers
 │   ├── test_filter.py       # TransactionFilter unit tests
-│   └── test_labeler.py      # Labeler unit tests
+│   ├── test_labeler.py      # Labeler unit tests
+│   └── test_seed_demo_data.py # Demo seed unit tests
 ├── data/                    # SQLite database directory (gitignored except .gitkeep)
+│   └── sample_transactions.json # Synthetic demo whale transactions
 ├── Dockerfile
 ├── docker-compose.yml
 ├── requirements.txt
