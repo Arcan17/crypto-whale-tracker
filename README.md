@@ -306,13 +306,16 @@ crypto-whale-tracker/
 ├── models/
 │   └── database.py          # SQLAlchemy ORM models + session factory
 ├── api/
-│   └── main.py              # FastAPI endpoints (/health /stats /transactions)
+│   └── main.py              # FastAPI endpoints (health, stats, transactions, wallet, exports)
 ├── dashboard/
 │   └── index.html           # Static portfolio dashboard
 ├── scripts/
 │   └── seed_demo.py         # Deterministic local demo seed data
 ├── tests/
 │   ├── conftest.py          # Shared fixtures and helpers
+│   ├── test_api.py          # API endpoint tests
+│   ├── test_api_exports.py  # CSV/XLSX export tests
+│   ├── test_wallet_api.py   # Wallet intelligence endpoint tests
 │   ├── test_filter.py       # TransactionFilter unit tests
 │   └── test_labeler.py      # Labeler unit tests
 ├── data/                    # SQLite database directory (gitignored except .gitkeep)
@@ -333,12 +336,12 @@ crypto-whale-tracker/
 pytest tests/ -v
 ```
 
-Current expected result: **18 tests passing** (filter + labeler unit tests).
+Current expected result: **30 tests passing** (filter, labeler, API endpoints, wallet intelligence, CSV/XLSX exports).
 
 ```text
-collected 18 items
+collected 30 items
 ...
-======================== 18 passed, 1 warning in 0.08s =========================
+======================== 30 passed, 2 warnings in 0.44s =========================
 ```
 
 You can also run tests inside Docker:
