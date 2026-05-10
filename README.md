@@ -34,7 +34,7 @@ Ethereum Network
       |
       +──> [TelegramAlert] ──> Telegram Bot API
       |
-      +──> [FastAPI] /health /stats /transactions
+      +──> [FastAPI] /health /stats /transactions /wallet endpoints
 ```
 
 ---
@@ -180,6 +180,67 @@ curl "http://localhost:8081/transactions?limit=3&token=USDC"
 }
 ```
 
+### `GET /wallet/{address}/summary`
+
+Returns wallet-level intelligence computed from locally stored whale transactions
+and locally known address labels. This endpoint does **not** call external APIs.
+
+```bash
+curl "http://localhost:8081/wallet/0x28C6c06298d514Db089934071355E5743bf21d60/summary"
+```
+
+```json
+{
+  "address": "0x28C6c06298d514Db089934071355E5743bf21d60",
+  "label": "Binance Hot Wallet",
+  "category": "exchange",
+  "total_incoming_usd": 1800000.00,
+  "total_outgoing_usd": 1200000.00,
+  "largest_transaction_usd": 1200000.00,
+  "transaction_count": 4,
+  "top_tokens": [
+    {"symbol": "USDC", "count": 2, "volume_usd": 1700000.00},
+    {"symbol": "ETH", "count": 2, "volume_usd": 1300000.00}
+  ],
+  "first_seen": "2026-05-01T09:10:11",
+  "last_seen": "2026-05-01T14:23:01"
+}
+```
+
+### `GET /wallet/{address}/transactions?limit=20&skip=0&token=USDC`
+
+Paginated list of locally stored whale transactions where the wallet is either
+the sender or recipient. The optional `token` filter is case-insensitive.
+
+```bash
+curl "http://localhost:8081/wallet/0x28C6c06298d514Db089934071355E5743bf21d60/transactions?limit=2&token=USDC"
+```
+
+```json
+{
+  "address": "0x28C6c06298d514Db089934071355E5743bf21d60",
+  "total": 2,
+  "skip": 0,
+  "limit": 2,
+  "transactions": [
+    {
+      "id": 142,
+      "tx_hash": "0x3f4a1c2b8e9d0f5a7b6c3e2d1a0f9e8d7c6b5a4f3e2d1c0b9a8f7e6d5c4b3a2",
+      "from_address": "0x28C6c06298d514Db089934071355E5743bf21d60",
+      "from_label": "Binance Hot Wallet",
+      "to_address": "0x9f3a4b2c1d8e7f6a5b4c3d2e1f0a9b8c7d6e5f4a",
+      "to_label": "Unknown Wallet",
+      "value_eth": "400.00000000",
+      "value_usd": "1200000.00",
+      "token_symbol": "USDC",
+      "block_number": 19450123,
+      "direction": "from_exchange",
+      "created_at": "2026-05-01T14:23:01"
+    }
+  ]
+}
+```
+
 ---
 
 ## Project Structure
@@ -199,11 +260,12 @@ crypto-whale-tracker/
 ├── models/
 │   └── database.py          # SQLAlchemy ORM models + session factory
 ├── api/
-│   └── main.py              # FastAPI endpoints (/health /stats /transactions)
+│   └── main.py              # FastAPI endpoints (/health /stats /transactions /wallet)
 ├── tests/
 │   ├── conftest.py          # Shared fixtures and helpers
 │   ├── test_filter.py       # TransactionFilter unit tests
-│   └── test_labeler.py      # Labeler unit tests
+│   ├── test_labeler.py      # Labeler unit tests
+│   └── test_wallet_api.py   # Wallet intelligence API tests
 ├── data/                    # SQLite database directory (gitignored except .gitkeep)
 ├── Dockerfile
 ├── docker-compose.yml
@@ -234,7 +296,7 @@ tests/test_filter.py::test_token_transfer_usdc_detected                  PASSED
 ...
 tests/test_labeler.py::test_known_exchange_address_returns_label         PASSED
 ...
-18 passed in 0.XXs
+22 passed in 0.XXs
 ```
 
 ---
