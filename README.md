@@ -180,6 +180,22 @@ curl "http://localhost:8081/transactions?limit=3&token=USDC"
 }
 ```
 
+### `GET /transactions/export.csv`
+
+Exports stored whale transactions as a downloadable CSV file. Supports the same optional `token` query parameter.
+
+```bash
+curl -O -J http://localhost:8081/transactions/export.csv
+```
+
+### `GET /transactions/export.xlsx`
+
+Exports stored whale transactions as a downloadable XLSX workbook. Supports the same optional `token` query parameter.
+
+```bash
+curl -O -J http://localhost:8081/transactions/export.xlsx
+```
+
 ---
 
 ## Project Structure
@@ -199,9 +215,10 @@ crypto-whale-tracker/
 ├── models/
 │   └── database.py          # SQLAlchemy ORM models + session factory
 ├── api/
-│   └── main.py              # FastAPI endpoints (/health /stats /transactions)
+│   └── main.py              # FastAPI endpoints (/health /stats /transactions + exports)
 ├── tests/
 │   ├── conftest.py          # Shared fixtures and helpers
+│   ├── test_api.py          # FastAPI endpoint tests
 │   ├── test_filter.py       # TransactionFilter unit tests
 │   └── test_labeler.py      # Labeler unit tests
 ├── data/                    # SQLite database directory (gitignored except .gitkeep)
@@ -228,13 +245,15 @@ docker-compose run --rm app pytest tests/ -v
 Expected output (all passing):
 
 ```
+tests/test_api.py::test_health_endpoint                              PASSED
+tests/test_api.py::test_transactions_export_xlsx_endpoint            PASSED
 tests/test_filter.py::test_eth_transaction_above_threshold_is_detected  PASSED
 tests/test_filter.py::test_eth_transaction_below_threshold_is_ignored   PASSED
 tests/test_filter.py::test_token_transfer_usdc_detected                  PASSED
 ...
 tests/test_labeler.py::test_known_exchange_address_returns_label         PASSED
 ...
-18 passed in 0.XXs
+24 passed in 0.XXs
 ```
 
 ---
