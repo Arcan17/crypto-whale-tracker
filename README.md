@@ -34,7 +34,7 @@ Ethereum Network
       |
       +──> [TelegramAlert] ──> Telegram Bot API
       |
-      +──> [FastAPI] /health /stats /transactions
+      +──> [FastAPI] /health /stats /transactions /transactions/export.csv /transactions/export.xlsx
 ```
 
 ---
@@ -148,12 +148,12 @@ curl http://localhost:8081/stats
 }
 ```
 
-### `GET /transactions?limit=20&skip=0&token=USDC`
+### `GET /transactions?limit=20&skip=0&token=USDC&min_usd=500000`
 
-Paginated list of stored whale transactions with optional token filter.
+Paginated list of stored whale transactions with optional token and minimum USD filters.
 
 ```bash
-curl "http://localhost:8081/transactions?limit=3&token=USDC"
+curl "http://localhost:8081/transactions?limit=3&token=USDC&min_usd=500000"
 ```
 
 ```json
@@ -180,6 +180,24 @@ curl "http://localhost:8081/transactions?limit=3&token=USDC"
 }
 ```
 
+### `GET /transactions/export.csv?limit=200&token=USDC&min_usd=500000`
+
+Download stored whale transactions as a CSV file. Supports `token`, `min_usd`, and `limit` filters.
+The response uses `Content-Disposition: attachment; filename="transactions.csv"` and `X-Content-Type-Options: nosniff` headers for safe downloads.
+
+```bash
+curl -L -o transactions.csv "http://localhost:8081/transactions/export.csv?token=USDC&min_usd=500000&limit=200"
+```
+
+### `GET /transactions/export.xlsx?limit=200&token=USDC&min_usd=500000`
+
+Download stored whale transactions as an Excel workbook. Supports `token`, `min_usd`, and `limit` filters.
+The response uses `Content-Disposition: attachment; filename="transactions.xlsx"` and `X-Content-Type-Options: nosniff` headers for safe downloads.
+
+```bash
+curl -L -o transactions.xlsx "http://localhost:8081/transactions/export.xlsx?token=USDC&min_usd=500000&limit=200"
+```
+
 ---
 
 ## Project Structure
@@ -199,7 +217,7 @@ crypto-whale-tracker/
 ├── models/
 │   └── database.py          # SQLAlchemy ORM models + session factory
 ├── api/
-│   └── main.py              # FastAPI endpoints (/health /stats /transactions)
+│   └── main.py              # FastAPI endpoints (/health /stats /transactions /transactions/export.csv /transactions/export.xlsx)
 ├── tests/
 │   ├── conftest.py          # Shared fixtures and helpers
 │   ├── test_filter.py       # TransactionFilter unit tests
