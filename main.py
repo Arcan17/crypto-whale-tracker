@@ -36,12 +36,19 @@ async def main() -> None:
     logger.info("Initialising database…")
     init_db()
 
-    alert = TelegramAlert(settings)
-    tx_filter = TransactionFilter(settings)
-    feed = EthereumFeed(settings, tx_filter, alert, SessionLocal)
+    feed = None
+    if settings.DEMO_MODE:
+        logger.info(
+            "DEMO_MODE=true: skipping live Ethereum WebSocket and Telegram alert setup."
+        )
+        set_feed(None)
+    else:
+        alert = TelegramAlert(settings)
+        tx_filter = TransactionFilter(settings)
+        feed = EthereumFeed(settings, tx_filter, alert, SessionLocal)
 
-    # Register feed with the API so /health can report connection status.
-    set_feed(feed)
+        # Register feed with the API so /health can report connection status.
+        set_feed(feed)
 
     # Configure uvicorn without using its built-in signal handlers so that
     # asyncio.gather() controls the lifecycle cleanly.
@@ -55,10 +62,13 @@ async def main() -> None:
 
     logger.info("Starting Crypto Whale Tracker — API on port %d", settings.HEALTH_PORT)
 
-    await asyncio.gather(
-        server.serve(),
-        feed.start(),
-    )
+    if settings.DEMO_MODE:
+        await server.serve()
+    else:
+        await asyncio.gather(
+            server.serve(),
+            feed.start(),
+        )
 
 
 if __name__ == "__main__":
