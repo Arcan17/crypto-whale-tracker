@@ -203,6 +203,46 @@ Paginated list of stored whale transactions with an optional token filter.
 curl "http://localhost:8080/transactions?limit=3&token=USDC"
 ```
 
+---
+
+### `GET /wallet/{address}/summary`
+
+Wallet intelligence — aggregated stats for a specific Ethereum address.
+
+```bash
+curl "http://localhost:8080/wallet/0x28C6c06298d514Db089934071355E5743bf21d60/summary"
+```
+
+---
+
+### `GET /wallet/{address}/transactions`
+
+All transactions involving a specific wallet address.
+
+```bash
+curl "http://localhost:8080/wallet/0x28C6c06298d514Db089934071355E5743bf21d60/transactions"
+```
+
+---
+
+### `GET /transactions/export.csv`
+
+Download all stored transactions as a CSV file.
+
+```bash
+curl "http://localhost:8080/transactions/export.csv" -o transactions.csv
+```
+
+---
+
+### `GET /transactions/export.xlsx`
+
+Download all stored transactions as an Excel workbook.
+
+```bash
+curl "http://localhost:8080/transactions/export.xlsx" -o transactions.xlsx
+```
+
 ```json
 {
   "total": 1,
@@ -244,6 +284,8 @@ base URL as a query parameter, for example:
 ```text
 http://localhost:8000?api=http://localhost:8080
 ```
+
+![Dashboard](docs/screenshots/dashboard.png)
 
 ---
 
@@ -291,7 +333,7 @@ crypto-whale-tracker/
 pytest tests/ -v
 ```
 
-Current expected result: **18 tests passing**.
+Current expected result: **18 tests passing** (filter + labeler unit tests).
 
 ```text
 collected 18 items
