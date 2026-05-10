@@ -58,9 +58,7 @@ def mock_eth_price(settings: Settings):
 # ---------------------------------------------------------------------------
 
 
-def make_eth_tx(
-    value_wei: int, tx_hash: str = "0xabc123", block: int = 19_000_000
-) -> dict:
+def make_eth_tx(value_wei: int, tx_hash: str = "0xabc123", block: int = 19_000_000) -> dict:
     """Create a minimal ETH transaction dict.
 
     Args:

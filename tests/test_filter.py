@@ -174,9 +174,7 @@ async def test_eth_price_is_cached(settings):
 
 
 @pytest.mark.asyncio
-async def test_transaction_with_no_token_logs_and_zero_eth_ignored(
-    settings, mock_eth_price
-):
+async def test_transaction_with_no_token_logs_and_zero_eth_ignored(settings, mock_eth_price):
     """A transaction with zero ETH and no Transfer logs must return None."""
     tx_filter = TransactionFilter(settings)
     tx = make_eth_tx(0)

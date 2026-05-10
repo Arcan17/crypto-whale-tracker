@@ -80,15 +80,11 @@ def api_client():
 
 def test_transactions_csv_export_supports_filters(api_client: TestClient) -> None:
     """CSV export returns filtered transaction rows with download headers."""
-    response = api_client.get(
-        "/transactions/export.csv?token=USDC&min_usd=500000&limit=10"
-    )
+    response = api_client.get("/transactions/export.csv?token=USDC&min_usd=500000&limit=10")
 
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/csv")
-    assert response.headers["content-disposition"] == (
-        'attachment; filename="transactions.csv"'
-    )
+    assert response.headers["content-disposition"] == ('attachment; filename="transactions.csv"')
     assert response.headers["x-content-type-options"] == "nosniff"
 
     rows = list(csv.DictReader(io.StringIO(response.text)))
@@ -99,17 +95,13 @@ def test_transactions_csv_export_supports_filters(api_client: TestClient) -> Non
 
 def test_transactions_xlsx_export_supports_filters(api_client: TestClient) -> None:
     """XLSX export returns a valid workbook with filtered transaction rows."""
-    response = api_client.get(
-        "/transactions/export.xlsx?token=ETH&min_usd=10000&limit=10"
-    )
+    response = api_client.get("/transactions/export.xlsx?token=ETH&min_usd=10000&limit=10")
 
     assert response.status_code == 200
     assert response.headers["content-type"] == (
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
-    assert response.headers["content-disposition"] == (
-        'attachment; filename="transactions.xlsx"'
-    )
+    assert response.headers["content-disposition"] == ('attachment; filename="transactions.xlsx"')
     assert response.headers["x-content-type-options"] == "nosniff"
 
     with zipfile.ZipFile(io.BytesIO(response.content)) as workbook:
@@ -117,11 +109,7 @@ def test_transactions_xlsx_export_supports_filters(api_client: TestClient) -> No
 
     root = ET.fromstring(sheet_xml)
     namespace = {"main": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
-    values = [
-        text.text
-        for text in root.findall(".//main:t", namespace)
-        if text.text is not None
-    ]
+    values = [text.text for text in root.findall(".//main:t", namespace) if text.text is not None]
 
     assert "token_symbol" in values
     assert "ETH" in values

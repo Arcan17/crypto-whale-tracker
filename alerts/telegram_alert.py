@@ -77,9 +77,7 @@ class TelegramAlert:
             whale_tx: The :class:`~analysis.filter.WhaleTransaction` to report.
         """
         if self._bot is None or not self._settings.TELEGRAM_CHAT_ID:
-            logger.debug(
-                "Telegram not configured — skipping alert for %s.", whale_tx.hash[:12]
-            )
+            logger.debug("Telegram not configured — skipping alert for %s.", whale_tx.hash[:12])
             return
 
         try:

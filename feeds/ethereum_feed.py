@@ -78,9 +78,7 @@ class EthereumFeed:
                 backoff = 1  # Reset on clean disconnect.
             except Exception as exc:
                 self._connected = False
-                logger.error(
-                    "WebSocket feed error: %s — reconnecting in %s s", exc, backoff
-                )
+                logger.error("WebSocket feed error: %s — reconnecting in %s s", exc, backoff)
                 await asyncio.sleep(backoff)
                 backoff = min(backoff * 2, _MAX_BACKOFF)
 
@@ -155,8 +153,8 @@ class EthereumFeed:
             if "logs" in receipt_dict:
                 receipt_dict["logs"] = [dict(log) for log in receipt_dict["logs"]]
 
-            whale_tx: Optional[WhaleTransaction] = (
-                await self._tx_filter.analyze_transaction(tx_dict, receipt_dict)
+            whale_tx: Optional[WhaleTransaction] = await self._tx_filter.analyze_transaction(
+                tx_dict, receipt_dict
             )
             if whale_tx is not None:
                 logger.info(
@@ -183,9 +181,7 @@ class EthereumFeed:
         try:
             session = self._session_factory()
             try:
-                existing = (
-                    session.query(Transaction).filter_by(tx_hash=whale_tx.hash).first()
-                )
+                existing = session.query(Transaction).filter_by(tx_hash=whale_tx.hash).first()
                 if existing is None:
                     record = Transaction(
                         tx_hash=whale_tx.hash,

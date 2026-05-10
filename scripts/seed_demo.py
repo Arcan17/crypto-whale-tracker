@@ -63,11 +63,7 @@ def seed_demo_transactions() -> int:
 
     with SessionLocal() as db:
         for payload in DEMO_TRANSACTIONS:
-            exists = (
-                db.query(Transaction)
-                .filter(Transaction.tx_hash == payload["tx_hash"])
-                .first()
-            )
+            exists = db.query(Transaction).filter(Transaction.tx_hash == payload["tx_hash"]).first()
             if exists is not None:
                 continue
 
