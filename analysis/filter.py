@@ -32,7 +32,9 @@ KNOWN_TOKENS: dict[str, tuple[str, int]] = {
 TRANSFER_TOPIC: str = Web3.keccak(text="Transfer(address,address,uint256)").hex()
 
 # CoinGecko price endpoint
-_COINGECKO_URL = "https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd"
+_COINGECKO_URL = (
+    "https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd"
+)
 
 # ETH has 18 decimals
 _ETH_DECIMALS = Decimal(10**18)
@@ -135,13 +137,17 @@ class TransactionFilter:
                     return price
             except Exception as exc:
                 logger.error("Failed to fetch ETH price: %s", exc)
-                return self._eth_price_cache if self._eth_price_cache is not None else 0.0
+                return (
+                    self._eth_price_cache if self._eth_price_cache is not None else 0.0
+                )
 
     # ------------------------------------------------------------------
     # Public analysis entry point
     # ------------------------------------------------------------------
 
-    async def analyze_transaction(self, tx: dict, receipt: dict) -> Optional[WhaleTransaction]:
+    async def analyze_transaction(
+        self, tx: dict, receipt: dict
+    ) -> Optional[WhaleTransaction]:
         """Analyse a transaction and its receipt for whale-level activity.
 
         Checks native ETH value first, then inspects ERC-20 Transfer logs.  The
@@ -159,7 +165,9 @@ class TransactionFilter:
 
         eth_price = await self.get_eth_price()
         tx_hash: str = (
-            tx.get("hash", b"").hex() if isinstance(tx.get("hash"), bytes) else tx.get("hash", "")
+            tx.get("hash", b"").hex()
+            if isinstance(tx.get("hash"), bytes)
+            else tx.get("hash", "")
         )
         gas_used: int = receipt.get("gasUsed", 0)
         block_number: int = tx.get("blockNumber") or receipt.get("blockNumber", 0) or 0
@@ -229,7 +237,9 @@ class TransactionFilter:
     # Private helpers
     # ------------------------------------------------------------------
 
-    def _parse_token_transfer(self, log: dict) -> Optional[tuple[str, str, str, Decimal]]:
+    def _parse_token_transfer(
+        self, log: dict
+    ) -> Optional[tuple[str, str, str, Decimal]]:
         """Parse an ERC-20 Transfer event log.
 
         The Transfer event ABI is:

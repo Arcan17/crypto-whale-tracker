@@ -115,7 +115,9 @@ def _transaction_matches_wallet_query(address: str):
     )
 
 
-def _wallet_label_from_db(db: Session, address: str) -> tuple[Optional[str], Optional[str]]:
+def _wallet_label_from_db(
+    db: Session, address: str
+) -> tuple[Optional[str], Optional[str]]:
     """Return a wallet label/category from the local database if available."""
     wallet = (
         db.query(KnownWallet)
@@ -192,7 +194,9 @@ def _query_transaction_rows(
     min_usd: Optional[float] = None,
 ) -> list[Transaction]:
     """Fetch transaction rows for downloadable exports."""
-    query = _apply_transaction_filters(db.query(Transaction), token=token, min_usd=min_usd)
+    query = _apply_transaction_filters(
+        db.query(Transaction), token=token, min_usd=min_usd
+    )
     return query.order_by(Transaction.created_at.desc()).limit(limit).all()
 
 
@@ -226,7 +230,12 @@ def _render_xlsx(rows: list[dict[str, Any]]) -> bytes:
     ws.title = "Transactions"
     ws.append(EXPORT_FIELDS)
     for row in rows:
-        ws.append([str(row.get(f, "")) if row.get(f) is not None else "" for f in EXPORT_FIELDS])
+        ws.append(
+            [
+                str(row.get(f, "")) if row.get(f) is not None else ""
+                for f in EXPORT_FIELDS
+            ]
+        )
     buf = io.BytesIO()
     wb.save(buf)
     buf.seek(0)
@@ -263,9 +272,13 @@ async def stats(db: Session = Depends(get_db)) -> dict[str, Any]:
         JSON object with ``total_alerts_today``, ``total_volume_usd_today``,
         ``top_tokens`` (top 5 by count), and ``last_alert_at``.
     """
-    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    today_start = datetime.now(timezone.utc).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
 
-    today_txs = db.query(Transaction).filter(Transaction.created_at >= today_start).all()
+    today_txs = (
+        db.query(Transaction).filter(Transaction.created_at >= today_start).all()
+    )
 
     total_alerts = len(today_txs)
     total_volume = sum(float(tx.value_usd) for tx in today_txs)
@@ -282,7 +295,9 @@ async def stats(db: Session = Depends(get_db)) -> dict[str, Any]:
     )[:5]
 
     last_tx = db.query(Transaction).order_by(Transaction.created_at.desc()).first()
-    last_alert_at: Optional[str] = last_tx.created_at.isoformat() if last_tx is not None else None
+    last_alert_at: Optional[str] = (
+        last_tx.created_at.isoformat() if last_tx is not None else None
+    )
 
     return {
         "total_alerts_today": total_alerts,
@@ -294,9 +309,13 @@ async def stats(db: Session = Depends(get_db)) -> dict[str, Any]:
 
 @app.get("/transactions", summary="List whale transactions")
 async def list_transactions(
-    limit: int = Query(default=20, ge=1, le=200, description="Maximum records to return"),
+    limit: int = Query(
+        default=20, ge=1, le=200, description="Maximum records to return"
+    ),
     skip: int = Query(default=0, ge=0, description="Number of records to skip"),
-    token: Optional[str] = Query(default=None, description="Filter by token symbol (e.g. USDC)"),
+    token: Optional[str] = Query(
+        default=None, description="Filter by token symbol (e.g. USDC)"
+    ),
     min_usd: Optional[float] = Query(
         default=None, ge=0, description="Minimum USD value to include"
     ),
@@ -314,7 +333,9 @@ async def list_transactions(
     Returns:
         JSON object with ``total``, ``skip``, ``limit``, and ``transactions`` list.
     """
-    query = _apply_transaction_filters(db.query(Transaction), token=token, min_usd=min_usd)
+    query = _apply_transaction_filters(
+        db.query(Transaction), token=token, min_usd=min_usd
+    )
 
     total: int = query.count()
     rows = query.order_by(Transaction.created_at.desc()).offset(skip).limit(limit).all()
@@ -329,8 +350,12 @@ async def list_transactions(
 
 @app.get("/transactions/export.csv", summary="Export whale transactions as CSV")
 async def export_transactions_csv(
-    limit: int = Query(default=200, ge=1, le=1000, description="Maximum records to export"),
-    token: Optional[str] = Query(default=None, description="Filter by token symbol (e.g. USDC)"),
+    limit: int = Query(
+        default=200, ge=1, le=1000, description="Maximum records to export"
+    ),
+    token: Optional[str] = Query(
+        default=None, description="Filter by token symbol (e.g. USDC)"
+    ),
     min_usd: Optional[float] = Query(
         default=None, ge=0, description="Minimum USD value to include"
     ),
@@ -350,8 +375,12 @@ async def export_transactions_csv(
 
 @app.get("/transactions/export.xlsx", summary="Export whale transactions as Excel")
 async def export_transactions_xlsx(
-    limit: int = Query(default=200, ge=1, le=1000, description="Maximum records to export"),
-    token: Optional[str] = Query(default=None, description="Filter by token symbol (e.g. USDC)"),
+    limit: int = Query(
+        default=200, ge=1, le=1000, description="Maximum records to export"
+    ),
+    token: Optional[str] = Query(
+        default=None, description="Filter by token symbol (e.g. USDC)"
+    ),
     min_usd: Optional[float] = Query(
         default=None, ge=0, description="Minimum USD value to include"
     ),
@@ -399,7 +428,9 @@ async def wallet_summary(address: str, db: Session = Depends(get_db)) -> dict[st
         if token not in token_totals:
             token_totals[token] = {"symbol": token, "count": 0, "volume_usd": 0.0}
         token_totals[token]["count"] = int(token_totals[token]["count"]) + 1
-        token_totals[token]["volume_usd"] = float(token_totals[token]["volume_usd"]) + value_usd
+        token_totals[token]["volume_usd"] = (
+            float(token_totals[token]["volume_usd"]) + value_usd
+        )
 
         if tx.to_address and tx.to_address.lower() == normalized_address:
             total_incoming_usd += value_usd
@@ -436,9 +467,13 @@ async def wallet_summary(address: str, db: Session = Depends(get_db)) -> dict[st
 @app.get("/wallet/{address}/transactions", summary="List wallet transactions")
 async def wallet_transactions(
     address: str,
-    limit: int = Query(default=20, ge=1, le=200, description="Maximum records to return"),
+    limit: int = Query(
+        default=20, ge=1, le=200, description="Maximum records to return"
+    ),
     skip: int = Query(default=0, ge=0, description="Number of records to skip"),
-    token: Optional[str] = Query(default=None, description="Filter by token symbol (e.g. USDC)"),
+    token: Optional[str] = Query(
+        default=None, description="Filter by token symbol (e.g. USDC)"
+    ),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
     """List locally stored whale transactions involving a wallet address."""

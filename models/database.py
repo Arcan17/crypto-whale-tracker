@@ -24,7 +24,9 @@ _settings = get_settings()
 
 engine = create_engine(
     _settings.DATABASE_URL,
-    connect_args=({"check_same_thread": False} if "sqlite" in _settings.DATABASE_URL else {}),
+    connect_args=(
+        {"check_same_thread": False} if "sqlite" in _settings.DATABASE_URL else {}
+    ),
 )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
@@ -58,11 +60,19 @@ class Transaction(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     tx_hash: Mapped[str] = mapped_column(String(66), unique=True, nullable=False)
     from_address: Mapped[str] = mapped_column(String(42), nullable=False)
-    from_label: Mapped[str] = mapped_column(String(100), default="Unknown Wallet", nullable=False)
+    from_label: Mapped[str] = mapped_column(
+        String(100), default="Unknown Wallet", nullable=False
+    )
     to_address: Mapped[Optional[str]] = mapped_column(String(42), nullable=True)
-    to_label: Mapped[str] = mapped_column(String(100), default="Unknown Wallet", nullable=False)
-    value_eth: Mapped[float] = mapped_column(Numeric(precision=18, scale=8), nullable=False)
-    value_usd: Mapped[float] = mapped_column(Numeric(precision=18, scale=2), nullable=False)
+    to_label: Mapped[str] = mapped_column(
+        String(100), default="Unknown Wallet", nullable=False
+    )
+    value_eth: Mapped[float] = mapped_column(
+        Numeric(precision=18, scale=8), nullable=False
+    )
+    value_usd: Mapped[float] = mapped_column(
+        Numeric(precision=18, scale=2), nullable=False
+    )
     token_symbol: Mapped[str] = mapped_column(String(20), nullable=False)
     block_number: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
     direction: Mapped[str] = mapped_column(String(30), nullable=False)

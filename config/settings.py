@@ -33,7 +33,9 @@ class Settings:
     DATABASE_URL: str = "sqlite:///./data/whales.db"
     HEALTH_PORT: int = 8080
     LOG_LEVEL: str = "INFO"
-    MONITOR_TOKENS: List[str] = field(default_factory=lambda: ["ETH", "USDT", "USDC", "WETH"])
+    MONITOR_TOKENS: List[str] = field(
+        default_factory=lambda: ["ETH", "USDT", "USDC", "WETH"]
+    )
 
 
 def get_settings() -> Settings:
@@ -46,7 +48,9 @@ def get_settings() -> Settings:
     monitor_tokens = [t.strip() for t in raw_tokens.split(",") if t.strip()]
 
     return Settings(
-        ALCHEMY_WS_URL=os.getenv("ALCHEMY_WS_URL", "wss://eth-mainnet.g.alchemy.com/v2/YOUR_KEY"),
+        ALCHEMY_WS_URL=os.getenv(
+            "ALCHEMY_WS_URL", "wss://eth-mainnet.g.alchemy.com/v2/YOUR_KEY"
+        ),
         TELEGRAM_BOT_TOKEN=os.getenv("TELEGRAM_BOT_TOKEN", ""),
         TELEGRAM_CHAT_ID=os.getenv("TELEGRAM_CHAT_ID", ""),
         MIN_WHALE_USD=float(os.getenv("MIN_WHALE_USD", "500000")),
