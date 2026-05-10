@@ -1,4 +1,4 @@
-# Crypto Whale Tracker
+# On-Chain Intelligence Pipeline
 
 ![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)
 ![Docker](https://img.shields.io/badge/docker-ready-blue.svg)
@@ -7,34 +7,87 @@
 ![Ethereum](https://img.shields.io/badge/ethereum-mainnet-purple.svg)
 ![Telegram](https://img.shields.io/badge/alerts-telegram-26A5E4.svg)
 
-Real-time Ethereum whale transaction monitor.  Streams pending transactions via
-WebSocket, detects transfers above a configurable USD threshold, labels addresses
-against a registry of known exchanges and DeFi protocols, and fires instant
-Telegram alerts — all while exposing a REST API for querying history.
+**Real-time Ethereum whale monitoring, wallet intelligence, REST API, dashboard-ready analytics and Telegram alerts built with Python, Web3.py, FastAPI and PostgreSQL.**
+
+This repository is positioned as a Web3/Data Engineering portfolio project: an on-chain intelligence pipeline that ingests Ethereum mempool activity, enriches high-value transfers with price and wallet metadata, persists alert-ready records, and exposes analytics through an API that can power dashboards or downstream monitoring workflows.
+
+The application keeps the original `crypto-whale-tracker` repository name while presenting the system as a production-style ETL pipeline for real-time blockchain data.
 
 ---
 
-## How It Works
+## What This Project Demonstrates
+
+- **Real-time data ingestion:** subscribes to Ethereum pending transactions over WebSocket and recovers from connection interruptions.
+- **On-chain event detection:** identifies whale-sized ETH and token transfers using a configurable USD threshold.
+- **Data enrichment:** converts raw chain values into USD terms, adds wallet labels, and infers transfer direction such as exchange inflow or withdrawal.
+- **Operational persistence:** stores normalized transaction records through SQLAlchemy using SQLite by default and PostgreSQL-compatible configuration for production-style deployments.
+- **Analytics access layer:** provides FastAPI endpoints for health checks, daily aggregate statistics, and paginated transaction history.
+- **Alerting workflow:** routes high-signal whale events to Telegram while retaining the same records for API queries and dashboards.
+
+---
+
+## Web3/Data Skills Demonstrated
+
+| Skill Area | Demonstrated By |
+|------------|-----------------|
+| Web3 ingestion | Ethereum mempool subscription with WebSocket and transaction/receipt retrieval through Web3.py |
+| On-chain analytics | Whale threshold filtering, token detection, wallet labeling, and flow-direction classification |
+| ETL design | Extract from Ethereum, transform with pricing and labels, load into a relational store, and serve through APIs/alerts |
+| Data modeling | SQLAlchemy ORM models for alert history and queryable transaction records |
+| API engineering | FastAPI service exposing operational health, aggregate stats, and filtered historical data |
+| Data operations | Environment-based configuration, Dockerized runtime, reconnect logic, logging, and CI-backed tests |
+
+---
+
+## Architecture: On-Chain ETL/Data Pipeline
 
 ```
-Ethereum Network
-      |
-      | WebSocket (newPendingTransactions)
-      v
-[EthereumFeed] ──fetch tx+receipt──> [web3.py AsyncHTTP]
-      |
-      v
-[TransactionFilter] ──ETH price──> [CoinGecko API]
-      |
-      | whale detected (>= $500k)
-      v
-[Labeler] ──label addresses──> known wallets dict
-      |
-      +──> [Database] SQLite/PostgreSQL (SQLAlchemy)
-      |
-      +──> [TelegramAlert] ──> Telegram Bot API
-      |
-      +──> [FastAPI] /health /stats /transactions
+                 EXTRACT
+┌──────────────────────────────────────┐
+│ Ethereum Mainnet                     │
+│ newPendingTransactions WebSocket     │
+└──────────────────┬───────────────────┘
+                   │ pending tx hashes
+                   v
+┌──────────────────────────────────────┐
+│ EthereumFeed                         │
+│ reconnect loop + tx/receipt fetch    │
+│ via Web3.py AsyncHTTP                │
+└──────────────────┬───────────────────┘
+                   │ raw transaction payloads
+                   v
+                TRANSFORM
+┌──────────────────────────────────────┐
+│ TransactionFilter                    │
+│ token parsing + USD threshold checks │
+│ CoinGecko ETH price cache            │
+└──────────────────┬───────────────────┘
+                   │ whale candidates
+                   v
+┌──────────────────────────────────────┐
+│ Labeler                              │
+│ known-wallet enrichment              │
+│ exchange/DeFi/unknown categorization │
+│ inflow/outflow direction inference   │
+└──────────────────┬───────────────────┘
+                   │ enriched whale events
+                   v
+                  LOAD / SERVE
+┌──────────────────────────────────────┐
+│ Database                             │
+│ SQLAlchemy ORM                       │
+│ SQLite default / PostgreSQL-ready    │
+└──────────────┬───────────────────────┘
+               │ persisted alert facts
+       ┌───────┴────────┬──────────────────────┐
+       v                v                      v
+┌──────────────┐  ┌──────────────┐      ┌──────────────┐
+│ FastAPI      │  │ Telegram Bot │      │ Dashboards / │
+│ REST API     │  │ Alerts       │      │ BI consumers │
+│ /health      │  │ high-signal  │      │ via API      │
+│ /stats       │  │ notifications│      │              │
+│ /transactions│  │              │      │              │
+└──────────────┘  └──────────────┘      └──────────────┘
 ```
 
 ---
