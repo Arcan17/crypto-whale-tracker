@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from typing import Any, Generator, Optional
 
 from fastapi import Depends, FastAPI, Query
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
 from models.database import SessionLocal, Transaction
@@ -18,6 +19,14 @@ app = FastAPI(
     title="Crypto Whale Tracker",
     description="REST API for querying detected whale transactions.",
     version="1.0.0",
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["GET"],
+    allow_headers=["*"],
 )
 
 # Track application start time to calculate uptime.
