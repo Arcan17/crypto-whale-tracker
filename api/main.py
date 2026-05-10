@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import csv
+import io
 import logging
 import time
+import zipfile
 from datetime import datetime, timezone
 from typing import Any, Generator, Optional
+from xml.sax.saxutils import escape
 
-from fastapi import Depends, FastAPI, Query
+from fastapi import Depends, FastAPI, Query, Response
 from sqlalchemy.orm import Session
 
 from models.database import SessionLocal, Transaction
@@ -53,6 +57,132 @@ def get_db() -> Generator[Session, None, None]:
         yield db
     finally:
         db.close()
+
+
+TRANSACTION_EXPORT_HEADERS = [
+    "id",
+    "tx_hash",
+    "from_address",
+    "from_label",
+    "to_address",
+    "to_label",
+    "value_eth",
+    "value_usd",
+    "token_symbol",
+    "block_number",
+    "direction",
+    "created_at",
+]
+
+
+def _transaction_to_dict(tx: Transaction) -> dict[str, Any]:
+    """Convert a transaction ORM row into an API/export friendly dictionary."""
+    return {
+        "id": tx.id,
+        "tx_hash": tx.tx_hash,
+        "from_address": tx.from_address,
+        "from_label": tx.from_label,
+        "to_address": tx.to_address,
+        "to_label": tx.to_label,
+        "value_eth": str(tx.value_eth),
+        "value_usd": str(tx.value_usd),
+        "token_symbol": tx.token_symbol,
+        "block_number": tx.block_number,
+        "direction": tx.direction,
+        "created_at": tx.created_at.isoformat() if tx.created_at else None,
+    }
+
+
+def _query_transactions(db: Session, token: Optional[str] = None):
+    """Build the base transaction query shared by API and export endpoints."""
+    query = db.query(Transaction)
+    if token:
+        query = query.filter(Transaction.token_symbol.ilike(token))
+    return query
+
+
+def _worksheet_cell(reference: str, value: Any) -> str:
+    """Render a single XLSX worksheet cell."""
+    if value is None:
+        return f'<c r="{reference}"/>'
+
+    if isinstance(value, int):
+        return f'<c r="{reference}"><v>{value}</v></c>'
+
+    text = escape(str(value))
+    return f'<c r="{reference}" t="inlineStr"><is><t>{text}</t></is></c>'
+
+
+def _column_name(index: int) -> str:
+    """Return the Excel column name for a one-based column index."""
+    name = ""
+    while index:
+        index, remainder = divmod(index - 1, 26)
+        name = chr(65 + remainder) + name
+    return name
+
+
+def _build_xlsx(rows: list[dict[str, Any]]) -> bytes:
+    """Build a minimal XLSX workbook from exported transaction rows."""
+    worksheet_rows: list[str] = []
+    for row_index, row in enumerate(
+        [dict.fromkeys(TRANSACTION_EXPORT_HEADERS)] + rows, 1
+    ):
+        values = (
+            TRANSACTION_EXPORT_HEADERS
+            if row_index == 1
+            else [row[h] for h in TRANSACTION_EXPORT_HEADERS]
+        )
+        cells = "".join(
+            _worksheet_cell(f"{_column_name(col_index)}{row_index}", value)
+            for col_index, value in enumerate(values, 1)
+        )
+        worksheet_rows.append(f'<row r="{row_index}">{cells}</row>')
+
+    sheet_xml = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+        f'<sheetData>{"".join(worksheet_rows)}</sheetData>'
+        "</worksheet>"
+    )
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr(
+            "[Content_Types].xml",
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+            '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+            '<Default Extension="xml" ContentType="application/xml"/>'
+            '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
+            '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
+            "</Types>",
+        )
+        archive.writestr(
+            "_rels/.rels",
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>'
+            "</Relationships>",
+        )
+        archive.writestr(
+            "xl/workbook.xml",
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
+            'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+            '<sheets><sheet name="Transactions" sheetId="1" r:id="rId1"/></sheets>'
+            "</workbook>",
+        )
+        archive.writestr(
+            "xl/_rels/workbook.xml.rels",
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>'
+            "</Relationships>",
+        )
+        archive.writestr("xl/worksheets/sheet1.xml", sheet_xml)
+
+    return buffer.getvalue()
 
 
 # ---------------------------------------------------------------------------
@@ -142,30 +272,12 @@ async def list_transactions(
     Returns:
         JSON object with ``total``, ``skip``, ``limit``, and ``transactions`` list.
     """
-    query = db.query(Transaction)
-    if token:
-        query = query.filter(Transaction.token_symbol.ilike(token))
+    query = _query_transactions(db, token)
 
     total: int = query.count()
     rows = query.order_by(Transaction.created_at.desc()).offset(skip).limit(limit).all()
 
-    transactions = [
-        {
-            "id": tx.id,
-            "tx_hash": tx.tx_hash,
-            "from_address": tx.from_address,
-            "from_label": tx.from_label,
-            "to_address": tx.to_address,
-            "to_label": tx.to_label,
-            "value_eth": str(tx.value_eth),
-            "value_usd": str(tx.value_usd),
-            "token_symbol": tx.token_symbol,
-            "block_number": tx.block_number,
-            "direction": tx.direction,
-            "created_at": tx.created_at.isoformat() if tx.created_at else None,
-        }
-        for tx in rows
-    ]
+    transactions = [_transaction_to_dict(tx) for tx in rows]
 
     return {
         "total": total,
@@ -173,3 +285,52 @@ async def list_transactions(
         "limit": limit,
         "transactions": transactions,
     }
+
+
+@app.get("/transactions/export.csv", summary="Export whale transactions as CSV")
+async def export_transactions_csv(
+    token: Optional[str] = Query(
+        default=None, description="Filter by token symbol (e.g. USDC)"
+    ),
+    db: Session = Depends(get_db),
+) -> Response:
+    """Export stored whale transactions as a CSV file."""
+    rows = [
+        _transaction_to_dict(tx)
+        for tx in _query_transactions(db, token)
+        .order_by(Transaction.created_at.desc())
+        .all()
+    ]
+
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=TRANSACTION_EXPORT_HEADERS)
+    writer.writeheader()
+    writer.writerows(rows)
+
+    return Response(
+        content=output.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=transactions.csv"},
+    )
+
+
+@app.get("/transactions/export.xlsx", summary="Export whale transactions as XLSX")
+async def export_transactions_xlsx(
+    token: Optional[str] = Query(
+        default=None, description="Filter by token symbol (e.g. USDC)"
+    ),
+    db: Session = Depends(get_db),
+) -> Response:
+    """Export stored whale transactions as an XLSX workbook."""
+    rows = [
+        _transaction_to_dict(tx)
+        for tx in _query_transactions(db, token)
+        .order_by(Transaction.created_at.desc())
+        .all()
+    ]
+
+    return Response(
+        content=_build_xlsx(rows),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=transactions.xlsx"},
+    )
