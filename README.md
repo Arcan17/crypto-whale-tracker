@@ -65,6 +65,7 @@ Ethereum Network
 | Database          | SQLAlchemy 2.0 / SQLite (default) |
 | Alert delivery    | python-telegram-bot v20           |
 | REST API          | FastAPI + Uvicorn                 |
+| Analytics dashboard | Streamlit + pandas               |
 | Containerisation  | Docker / docker-compose           |
 | CI                | GitHub Actions                    |
 | Testing           | pytest + pytest-asyncio           |
@@ -93,6 +94,21 @@ cp .env.example .env
 # Edit .env
 python main.py
 ```
+
+
+### Analytics Dashboard
+
+The Streamlit dashboard reads from the same SQLAlchemy database used by the FastAPI app,
+so it can be opened against an existing database without live Ethereum or Alchemy
+credentials.
+
+```bash
+streamlit run dashboard.py
+```
+
+Use the sidebar to filter by token, minimum USD value, and direction/category.
+The dashboard includes headline metrics, latest transactions, top tokens, top labeled
+entities, volume by token, and a CSV download for the filtered results.
 
 ---
 
@@ -187,6 +203,7 @@ curl "http://localhost:8081/transactions?limit=3&token=USDC"
 ```
 crypto-whale-tracker/
 ├── main.py                  # Application entry point
+├── dashboard.py             # Streamlit analytics dashboard
 ├── config/
 │   └── settings.py          # Environment-variable configuration
 ├── feeds/
