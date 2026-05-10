@@ -8,9 +8,11 @@ from datetime import datetime, timezone
 from typing import Any, Generator, Optional
 
 from fastapi import Depends, FastAPI, Query
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
-from models.database import SessionLocal, Transaction
+from analysis.labeler import get_category, get_label
+from models.database import KnownWallet, SessionLocal, Transaction
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +55,77 @@ def get_db() -> Generator[Session, None, None]:
         yield db
     finally:
         db.close()
+
+
+# ---------------------------------------------------------------------------
+# Wallet intelligence helpers
+# ---------------------------------------------------------------------------
+
+UNKNOWN_WALLET_LABEL = "Unknown Wallet"
+
+
+def _normalise_address(address: str) -> str:
+    """Return a lowercase address for case-insensitive database lookups."""
+    return address.lower()
+
+
+def _transaction_matches_wallet_query(address: str):
+    """Build a SQLAlchemy filter matching transactions involving an address."""
+    normalized_address = _normalise_address(address)
+    return or_(
+        func.lower(Transaction.from_address) == normalized_address,
+        func.lower(Transaction.to_address) == normalized_address,
+    )
+
+
+def _wallet_label_from_db(
+    db: Session, address: str
+) -> tuple[Optional[str], Optional[str]]:
+    """Return a wallet label/category from the local database if available."""
+    wallet = (
+        db.query(KnownWallet)
+        .filter(func.lower(KnownWallet.address) == _normalise_address(address))
+        .first()
+    )
+    if wallet is None:
+        return None, None
+    return wallet.label, wallet.category
+
+
+def _wallet_label(address: str, db: Session) -> tuple[Optional[str], Optional[str]]:
+    """Resolve wallet intelligence from local sources without external calls.
+
+    Database-backed known wallets are checked first so operators can seed or
+    override labels. The static labeler registry is used as a fallback.
+    """
+    db_label, db_category = _wallet_label_from_db(db, address)
+    if db_label is not None:
+        return db_label, db_category
+
+    label = get_label(address)
+    if label == UNKNOWN_WALLET_LABEL:
+        return None, None
+
+    category = get_category(label)
+    return label, None if category == "unknown" else category
+
+
+def _transaction_to_dict(tx: Transaction) -> dict[str, Any]:
+    """Serialise a transaction ORM row for API responses."""
+    return {
+        "id": tx.id,
+        "tx_hash": tx.tx_hash,
+        "from_address": tx.from_address,
+        "from_label": tx.from_label,
+        "to_address": tx.to_address,
+        "to_label": tx.to_label,
+        "value_eth": str(tx.value_eth),
+        "value_usd": str(tx.value_usd),
+        "token_symbol": tx.token_symbol,
+        "block_number": tx.block_number,
+        "direction": tx.direction,
+        "created_at": tx.created_at.isoformat() if tx.created_at else None,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -149,27 +222,106 @@ async def list_transactions(
     total: int = query.count()
     rows = query.order_by(Transaction.created_at.desc()).offset(skip).limit(limit).all()
 
-    transactions = [
-        {
-            "id": tx.id,
-            "tx_hash": tx.tx_hash,
-            "from_address": tx.from_address,
-            "from_label": tx.from_label,
-            "to_address": tx.to_address,
-            "to_label": tx.to_label,
-            "value_eth": str(tx.value_eth),
-            "value_usd": str(tx.value_usd),
-            "token_symbol": tx.token_symbol,
-            "block_number": tx.block_number,
-            "direction": tx.direction,
-            "created_at": tx.created_at.isoformat() if tx.created_at else None,
-        }
-        for tx in rows
-    ]
+    transactions = [_transaction_to_dict(tx) for tx in rows]
 
     return {
         "total": total,
         "skip": skip,
         "limit": limit,
         "transactions": transactions,
+    }
+
+
+@app.get("/wallet/{address}/summary", summary="Wallet intelligence summary")
+async def wallet_summary(address: str, db: Session = Depends(get_db)) -> dict[str, Any]:
+    """Return aggregate wallet intelligence for a locally stored address.
+
+    The summary is computed only from persisted whale transactions and locally
+    known wallet labels; this endpoint does not perform external API calls.
+    """
+    normalized_address = _normalise_address(address)
+    label, category = _wallet_label(address, db)
+
+    rows = (
+        db.query(Transaction)
+        .filter(_transaction_matches_wallet_query(address))
+        .order_by(Transaction.created_at.asc())
+        .all()
+    )
+
+    total_incoming_usd = 0.0
+    total_outgoing_usd = 0.0
+    largest_transaction_usd = 0.0
+    token_totals: dict[str, dict[str, float | int | str]] = {}
+
+    for tx in rows:
+        value_usd = float(tx.value_usd)
+        largest_transaction_usd = max(largest_transaction_usd, value_usd)
+
+        token = tx.token_symbol
+        if token not in token_totals:
+            token_totals[token] = {"symbol": token, "count": 0, "volume_usd": 0.0}
+        token_totals[token]["count"] = int(token_totals[token]["count"]) + 1
+        token_totals[token]["volume_usd"] = (
+            float(token_totals[token]["volume_usd"]) + value_usd
+        )
+
+        if tx.to_address and tx.to_address.lower() == normalized_address:
+            total_incoming_usd += value_usd
+        if tx.from_address.lower() == normalized_address:
+            total_outgoing_usd += value_usd
+
+    top_tokens = sorted(
+        [
+            {
+                "symbol": str(token["symbol"]),
+                "count": int(token["count"]),
+                "volume_usd": round(float(token["volume_usd"]), 2),
+            }
+            for token in token_totals.values()
+        ],
+        key=lambda token: (token["volume_usd"], token["count"], token["symbol"]),
+        reverse=True,
+    )[:5]
+
+    return {
+        "address": address,
+        "label": label,
+        "category": category,
+        "total_incoming_usd": round(total_incoming_usd, 2),
+        "total_outgoing_usd": round(total_outgoing_usd, 2),
+        "largest_transaction_usd": round(largest_transaction_usd, 2),
+        "transaction_count": len(rows),
+        "top_tokens": top_tokens,
+        "first_seen": rows[0].created_at.isoformat() if rows else None,
+        "last_seen": rows[-1].created_at.isoformat() if rows else None,
+    }
+
+
+@app.get("/wallet/{address}/transactions", summary="List wallet transactions")
+async def wallet_transactions(
+    address: str,
+    limit: int = Query(
+        default=20, ge=1, le=200, description="Maximum records to return"
+    ),
+    skip: int = Query(default=0, ge=0, description="Number of records to skip"),
+    token: Optional[str] = Query(
+        default=None, description="Filter by token symbol (e.g. USDC)"
+    ),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    """List locally stored whale transactions involving a wallet address."""
+    query = db.query(Transaction).filter(_transaction_matches_wallet_query(address))
+    if token:
+        query = query.filter(Transaction.token_symbol.ilike(token))
+
+    total = query.count()
+    rows = query.order_by(Transaction.created_at.desc()).offset(skip).limit(limit).all()
+
+    return {
+        "address": address,
+        "total": total,
+        "skip": skip,
+        "limit": limit,
+        "transactions": [_transaction_to_dict(tx) for tx in rows],
     }
