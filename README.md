@@ -1,102 +1,47 @@
 # Crypto Whale Tracker
 
-## On-Chain Intelligence Pipeline — Python, Web3.py, FastAPI, PostgreSQL, Dashboard & Telegram Alerts
+**Real-time Ethereum on-chain intelligence pipeline with Telegram alerts and REST API.**
 
 ![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)
+![Tests](https://img.shields.io/badge/tests-30%20passing-brightgreen)
 ![Docker](https://img.shields.io/badge/docker-ready-blue.svg)
 ![CI](https://github.com/Arcan17/crypto-whale-tracker/actions/workflows/ci.yml/badge.svg)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)
 ![Ethereum](https://img.shields.io/badge/ethereum-mainnet-purple.svg)
 ![Telegram](https://img.shields.io/badge/alerts-telegram-26A5E4.svg)
 
-Crypto Whale Tracker is a portfolio-grade on-chain intelligence pipeline for
-monitoring high-value Ethereum transactions. It streams pending transactions with
-Web3.py, detects transfers above a configurable USD threshold, labels known
-exchange/DeFi/bridge wallets, stores alert history through SQLAlchemy
-(SQLite locally, PostgreSQL-ready), exposes FastAPI analytics endpoints, renders
-a lightweight browser dashboard, and can send Telegram whale alerts.
+---
+
+## The Problem
+
+Ethereum processes thousands of pending transactions per minute. Most are small — but a handful move millions of dollars across exchanges, DeFi protocols, and anonymous wallets.
+
+These **whale movements** are signals: large inflows to exchanges may indicate selling pressure; outflows suggest accumulation. But monitoring them in real time requires:
+
+- A persistent WebSocket connection to an Ethereum node
+- Decoding raw ERC-20 Transfer logs to get token amounts
+- Converting on-chain values to USD in real time
+- Knowing which wallet addresses belong to Binance, Coinbase, Uniswap, etc.
+
+This project does all of that — automatically.
+
+## The Solution
+
+Crypto Whale Tracker streams every pending Ethereum transaction, filters for transfers above a configurable USD threshold (default: **$500,000**), labels the wallets involved, stores the alert in a database, and sends an instant Telegram notification.
+
+All data is queryable through a FastAPI REST API with pagination, CSV/Excel export, and wallet intelligence summaries.
 
 ---
 
-## Quickstart
+## Dashboard
 
-These commands run the local demo path: seed deterministic whale transactions,
-start the FastAPI API, open the dashboard, and run the test suite.
-
-```bash
-# 1) Clone repo
-git clone https://github.com/Arcan17/crypto-whale-tracker.git
-cd crypto-whale-tracker
-
-# 2) Create an environment and install dependencies
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-
-# 3) Copy environment template
-cp .env.example .env
-
-# 4) Run demo seed data into the local SQLite database
-python scripts/seed_demo.py
-
-# 5) Start the API in one terminal
-uvicorn api.main:app --host 0.0.0.0 --port 8080
-
-# 6) Start the dashboard in a second terminal
-python -m http.server 8000 --directory dashboard
-# Open http://localhost:8000
-
-# 7) Run tests
-pytest tests/ -v
-```
-
-For live Ethereum monitoring and Telegram alerts, edit `.env` with a real
-`ALCHEMY_WS_URL`, `TELEGRAM_BOT_TOKEN`, and `TELEGRAM_CHAT_ID`, then run:
-
-```bash
-python main.py
-```
-
-Docker is also available for the live application path:
-
-```bash
-cp .env.example .env
-# Edit .env with live credentials, then:
-docker-compose up --build
-```
-
----
-
-## How It Works
-
-```text
-Ethereum Network
-      |
-      | WebSocket (newPendingTransactions)
-      v
-[EthereumFeed] ──fetch tx+receipt──> [web3.py AsyncHTTP]
-      |
-      v
-[TransactionFilter] ──ETH price──> [CoinGecko API]
-      |
-      | whale detected (>= $500k)
-      v
-[Labeler] ──label addresses──> known wallets dict
-      |
-      +──> [Database] SQLite/PostgreSQL (SQLAlchemy)
-      |
-      +──> [TelegramAlert] ──> Telegram Bot API
-      |
-      +──> [FastAPI] /health /stats /transactions
-      |
-      +──> [Dashboard] browser UI over FastAPI JSON
-```
+![Dashboard](docs/screenshots/dashboard.png)
 
 ---
 
 ## Example Telegram Alert
 
-```text
+```
 🐋 WHALE ALERT
 
 💰 $1,200,000 USDC
@@ -110,223 +55,202 @@ Ethereum Network
 
 ---
 
-## Tech Stack
+## Features
 
-| Component | Technology |
-| --- | --- |
-| Language | Python 3.11 |
-| Ethereum feed | Web3.py + websockets |
-| Price oracle | CoinGecko REST API, cached for 60 seconds |
-| Database | SQLAlchemy 2.0, SQLite default, PostgreSQL-ready with psycopg |
-| REST API | FastAPI + Uvicorn |
-| Dashboard | Static HTML/CSS/JavaScript over FastAPI JSON endpoints |
-| Alert delivery | python-telegram-bot v20 |
-| Containerization | Docker / docker-compose |
-| CI | GitHub Actions |
-| Testing | pytest + pytest-asyncio |
+- **Real-time WebSocket streaming** — subscribes to `newPendingTransactions` via Alchemy
+- **ETH + ERC-20 detection** — native ETH and USDT/USDC/WETH token transfers
+- **USD threshold filtering** — configurable minimum (default: $500,000)
+- **Wallet intelligence** — labels 17+ known wallets (Binance, Coinbase, Uniswap, etc.)
+- **Direction classification** — `from_exchange`, `to_exchange`, `wallet_to_wallet`
+- **Telegram notifications** — instant MarkdownV2 alerts via python-telegram-bot
+- **PostgreSQL-ready** — SQLite locally, swap `DATABASE_URL` for production
+- **FastAPI REST API** — paginated queries, wallet summaries, CSV/XLSX export
+- **Browser dashboard** — static HTML/JS UI over the FastAPI endpoints
+- **30 passing tests** — filter logic, labeler, API endpoints, wallet intelligence, exports
+- **Auto-reconnect** — exponential backoff WebSocket reconnection (1s → 60s max)
+- **Docker + CI/CD** — one command deploy, GitHub Actions on every push
 
 ---
 
-## Configuration
+## Architecture
 
-All settings are loaded from environment variables or a local `.env` file.
+```
+Ethereum Mainnet (pending transactions)
+         │
+         │  WebSocket — eth_subscribe → newPendingTransactions
+         ▼
+[EthereumFeed]          feeds/ethereum_feed.py
+  ├─ WebSocket connection (Alchemy)
+  ├─ Exponential backoff reconnect
+  └─ Fire-and-forget coroutine per tx hash
+         │
+         │  tx_hash → fetch tx + receipt (web3.py AsyncHTTP)
+         ▼
+[TransactionFilter]     analysis/filter.py
+  ├─ Native ETH: value_wei × eth_price ≥ threshold?
+  ├─ ERC-20: decode Transfer logs → USDT/USDC/WETH amount?
+  └─ ETH/USD price via CoinGecko (cached 60s)
+         │
+         │  whale detected (≥ MIN_WHALE_USD)
+         ▼
+[Labeler]               analysis/labeler.py
+  ├─ address → known label (O(1) dict lookup)
+  └─ direction → from_exchange / to_exchange / wallet_to_wallet
+         │
+    ┌────┴────┐
+    ▼         ▼
+[Database]   [TelegramAlert]
+SQLAlchemy   MarkdownV2 message
+SQLite/PG    python-telegram-bot
+    │
+    ▼
+[FastAPI]               api/main.py
+  GET /health
+  GET /stats
+  GET /transactions
+  GET /transactions/export.csv
+  GET /transactions/export.xlsx
+  GET /wallet/{address}/summary
+  GET /wallet/{address}/transactions
+    │
+    ▼
+[Dashboard]             dashboard/index.html
+Static HTML/JS — reads from FastAPI
+```
 
-| Variable | Description | Default |
-| --- | --- | --- |
-| `ALCHEMY_WS_URL` | Alchemy WebSocket endpoint for Ethereum Mainnet | `wss://eth-mainnet.g.alchemy.com/v2/YOUR_KEY` |
-| `TELEGRAM_BOT_TOKEN` | Telegram Bot API token from @BotFather | empty; alerts disabled |
-| `TELEGRAM_CHAT_ID` | Chat or channel ID to receive whale alerts | empty; alerts disabled |
-| `MIN_WHALE_USD` | Minimum USD value to trigger an alert | `500000` |
-| `DATABASE_URL` | SQLAlchemy connection string | `sqlite:///./data/whales.db` |
-| `HEALTH_PORT` | Port for the FastAPI server used by `python main.py` | `8080` |
-| `LOG_LEVEL` | Python logging level | `INFO` |
-| `MONITOR_TOKENS` | Comma-separated list of token symbols to monitor | `ETH,USDT,USDC,WETH` |
+---
 
-Example PostgreSQL setting:
+## Tech Stack
 
+| Component        | Technology                                  |
+|------------------|---------------------------------------------|
+| Language         | Python 3.11                                 |
+| Ethereum feed    | Web3.py + websockets                        |
+| Price oracle     | CoinGecko REST API (cached 60s)             |
+| Database         | SQLAlchemy 2.0 — SQLite (local) / PostgreSQL |
+| REST API         | FastAPI + Uvicorn                           |
+| Dashboard        | Static HTML/CSS/JS                          |
+| Alert delivery   | python-telegram-bot v20                     |
+| Containerization | Docker + Docker Compose                     |
+| CI/CD            | GitHub Actions                              |
+| Testing          | pytest + pytest-asyncio (30 tests)          |
+
+---
+
+## Quickstart (Local Demo)
+
+No Alchemy key needed — uses seeded demo data.
+
+```bash
+git clone https://github.com/Arcan17/crypto-whale-tracker.git
+cd crypto-whale-tracker
+
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
+cp .env.example .env
+
+# 1. Seed demo data
+python scripts/seed_demo.py
+
+# 2. Start the API
+uvicorn api.main:app --host 0.0.0.0 --port 8080
+
+# 3. Open the dashboard (new terminal)
+python -m http.server 8000 --directory dashboard
+# Visit http://localhost:8000
+
+# 4. Run tests
+pytest tests/ -v
+```
+
+---
+
+## Live Monitoring (Alchemy + Telegram)
+
+```bash
+cp .env.example .env
+# Edit .env — see Environment Variables below
+
+python main.py
+# or
+docker-compose up --build
+```
+
+---
+
+## Environment Variables
+
+```bash
+cp .env.example .env
+```
+
+| Variable             | Description                                         | Default                                          |
+|----------------------|-----------------------------------------------------|--------------------------------------------------|
+| `ALCHEMY_WS_URL`     | Alchemy WebSocket endpoint for Ethereum Mainnet     | `wss://eth-mainnet.g.alchemy.com/v2/YOUR_KEY`    |
+| `TELEGRAM_BOT_TOKEN` | Telegram Bot API token from @BotFather             | *(empty — alerts disabled)*                      |
+| `TELEGRAM_CHAT_ID`   | Chat or channel ID to receive alerts                | *(empty — alerts disabled)*                      |
+| `MIN_WHALE_USD`      | Minimum USD value to trigger an alert               | `500000`                                         |
+| `DATABASE_URL`       | SQLAlchemy connection string                        | `sqlite:///./data/whales.db`                     |
+| `HEALTH_PORT`        | Port for the FastAPI server                         | `8080`                                           |
+| `LOG_LEVEL`          | Python logging level                                | `INFO`                                           |
+| `MONITOR_TOKENS`     | Comma-separated token symbols to monitor            | `ETH,USDT,USDC,WETH`                             |
+
+**Getting a free Alchemy key:**
+1. Sign up at [alchemy.com](https://alchemy.com)
+2. Create app → Ethereum Mainnet
+3. Copy the WebSocket URL into `ALCHEMY_WS_URL`
+
+**PostgreSQL:**
 ```bash
 DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/whales
 ```
 
 ---
 
-## API Reference
-
-Start the API for local seeded data:
+## REST API
 
 ```bash
 uvicorn api.main:app --host 0.0.0.0 --port 8080
+# Interactive docs: http://localhost:8080/docs
 ```
 
-### `GET /health`
-
-Returns application health and WebSocket connection status.
+| Method | Endpoint                          | Description                              |
+|--------|-----------------------------------|------------------------------------------|
+| `GET`  | `/health`                         | App status + WebSocket connection state  |
+| `GET`  | `/stats`                          | Today's alerts, volume, top tokens       |
+| `GET`  | `/transactions`                   | Paginated whale transactions             |
+| `GET`  | `/transactions/export.csv`        | Download as CSV                          |
+| `GET`  | `/transactions/export.xlsx`       | Download as Excel                        |
+| `GET`  | `/wallet/{address}/summary`       | Wallet intelligence + volume stats       |
+| `GET`  | `/wallet/{address}/transactions`  | All transactions for a wallet            |
 
 ```bash
 curl http://localhost:8080/health
-```
-
-```json
-{
-  "status": "healthy",
-  "connected": false,
-  "uptime_seconds": 12.34
-}
-```
-
-### `GET /stats`
-
-Returns aggregated statistics for the current UTC day.
-
-```bash
-curl http://localhost:8080/stats
-```
-
-```json
-{
-  "total_alerts_today": 3,
-  "total_volume_usd_today": 2780000.0,
-  "top_tokens": [
-    {"symbol": "ETH", "count": 1},
-    {"symbol": "USDC", "count": 1},
-    {"symbol": "WETH", "count": 1}
-  ],
-  "last_alert_at": "2026-05-10T12:00:00"
-}
-```
-
-### `GET /transactions?limit=20&skip=0&token=USDC`
-
-Paginated list of stored whale transactions with an optional token filter.
-
-```bash
-curl "http://localhost:8080/transactions?limit=3&token=USDC"
-```
-
----
-
-### `GET /wallet/{address}/summary`
-
-Wallet intelligence — aggregated stats for a specific Ethereum address.
-
-```bash
+curl "http://localhost:8080/transactions?limit=10&token=USDC&min_usd=1000000"
 curl "http://localhost:8080/wallet/0x28C6c06298d514Db089934071355E5743bf21d60/summary"
+curl "http://localhost:8080/transactions/export.csv" -o whales.csv
 ```
 
----
+<details>
+<summary>Sample responses</summary>
 
-### `GET /wallet/{address}/transactions`
-
-All transactions involving a specific wallet address.
-
-```bash
-curl "http://localhost:8080/wallet/0x28C6c06298d514Db089934071355E5743bf21d60/transactions"
+**GET /health**
+```json
+{ "status": "healthy", "connected": true, "uptime_seconds": 3612.5 }
 ```
 
----
-
-### `GET /transactions/export.csv`
-
-Download all stored transactions as a CSV file.
-
-```bash
-curl "http://localhost:8080/transactions/export.csv" -o transactions.csv
-```
-
----
-
-### `GET /transactions/export.xlsx`
-
-Download all stored transactions as an Excel workbook.
-
-```bash
-curl "http://localhost:8080/transactions/export.xlsx" -o transactions.xlsx
-```
-
+**GET /stats**
 ```json
 {
-  "total": 1,
-  "skip": 0,
-  "limit": 3,
-  "transactions": [
-    {
-      "id": 2,
-      "tx_hash": "0xb2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
-      "from_address": "0x2222222222222222222222222222222222222222",
-      "from_label": "Unknown Wallet",
-      "to_address": "0x71660c4005BA85c37ccec55d0C4493E66Fe775d3",
-      "to_label": "Coinbase",
-      "value_eth": "0E-8",
-      "value_usd": "875000.00",
-      "token_symbol": "USDC",
-      "block_number": 19450456,
-      "direction": "to_exchange",
-      "created_at": "2026-05-10T12:00:00"
-    }
-  ]
+  "total_alerts_today": 12,
+  "total_volume_usd_today": 14500000.0,
+  "top_tokens": [{"symbol": "USDC", "count": 5}, {"symbol": "ETH", "count": 4}],
+  "last_alert_at": "2024-05-10T14:23:01"
 }
 ```
-
----
-
-## Dashboard
-
-The dashboard is a dependency-free static UI that reads from the FastAPI API.
-Run it after seeding data and starting the API:
-
-```bash
-python -m http.server 8000 --directory dashboard
-```
-
-Open `http://localhost:8000`. If your API is running somewhere else, pass the
-base URL as a query parameter, for example:
-
-```text
-http://localhost:8000?api=http://localhost:8080
-```
-
-![Dashboard](docs/screenshots/dashboard.png)
-
----
-
-## Project Structure
-
-```text
-crypto-whale-tracker/
-├── main.py                  # Live application entry point
-├── config/
-│   └── settings.py          # Environment-variable configuration
-├── feeds/
-│   └── ethereum_feed.py     # WebSocket feed with reconnect logic
-├── analysis/
-│   ├── filter.py            # Whale detection and USD conversion
-│   └── labeler.py           # Address → label/category/direction mapping
-├── alerts/
-│   └── telegram_alert.py    # MarkdownV2 Telegram notifications
-├── models/
-│   └── database.py          # SQLAlchemy ORM models + session factory
-├── api/
-│   └── main.py              # FastAPI endpoints (health, stats, transactions, wallet, exports)
-├── dashboard/
-│   └── index.html           # Static portfolio dashboard
-├── scripts/
-│   └── seed_demo.py         # Deterministic local demo seed data
-├── tests/
-│   ├── conftest.py          # Shared fixtures and helpers
-│   ├── test_api.py          # API endpoint tests
-│   ├── test_api_exports.py  # CSV/XLSX export tests
-│   ├── test_wallet_api.py   # Wallet intelligence endpoint tests
-│   ├── test_filter.py       # TransactionFilter unit tests
-│   └── test_labeler.py      # Labeler unit tests
-├── data/                    # SQLite database directory (gitignored except .gitkeep)
-├── ARCHITECTURE.md
-├── Dockerfile
-├── docker-compose.yml
-├── requirements.txt
-├── pytest.ini
-├── .env.example
-└── .gitignore
-```
+</details>
 
 ---
 
@@ -336,69 +260,117 @@ crypto-whale-tracker/
 pytest tests/ -v
 ```
 
-Current expected result: **30 tests passing** (filter, labeler, API endpoints, wallet intelligence, CSV/XLSX exports).
-
-```text
-collected 30 items
-...
-======================== 30 passed, 2 warnings in 0.44s =========================
+```
+tests/test_filter.py          8 passed   ← whale detection logic
+tests/test_labeler.py        10 passed   ← address labeling
+tests/test_api.py             6 passed   ← API endpoints
+tests/test_api_exports.py     3 passed   ← CSV/XLSX export
+tests/test_wallet_api.py      3 passed   ← wallet intelligence endpoints
+──────────────────────────────────────────
+30 passed in 0.44s
 ```
 
-You can also run tests inside Docker:
+All tests use mocks — no Alchemy API key or Telegram token required.
 
-```bash
-docker-compose run --rm app pytest tests/ -v
+---
+
+## Project Structure
+
+```
+crypto-whale-tracker/
+├── main.py                  # Entry point: feed + API + alerts
+├── config/
+│   └── settings.py          # Pydantic Settings — env var config
+├── feeds/
+│   └── ethereum_feed.py     # WebSocket feed + reconnect logic
+├── analysis/
+│   ├── filter.py            # Whale detection + ERC-20 decoding
+│   └── labeler.py           # Address → label/category/direction
+├── alerts/
+│   └── telegram_alert.py    # MarkdownV2 Telegram notifications
+├── models/
+│   └── database.py          # SQLAlchemy ORM + session factory
+├── api/
+│   └── main.py              # FastAPI: health, stats, transactions, wallet, exports
+├── dashboard/
+│   └── index.html           # Static browser dashboard
+├── scripts/
+│   └── seed_demo.py         # Deterministic demo data (no live credentials needed)
+├── tests/
+│   ├── conftest.py
+│   ├── test_filter.py
+│   ├── test_labeler.py
+│   ├── test_api.py
+│   ├── test_api_exports.py
+│   └── test_wallet_api.py
+├── ARCHITECTURE.md          # Deep technical documentation
+├── Dockerfile
+├── docker-compose.yml
+├── requirements.txt
+├── .env.example
+└── .github/workflows/ci.yml
 ```
 
 ---
 
-## Portfolio Use Case
+## Technical Decisions
 
-This project is designed to demonstrate production-adjacent Web3 data skills for
-roles that require more than a basic CRUD application.
+**Why `asyncio.ensure_future` instead of `await` per tx?**
+Ethereum mainnet can push 100–500 tx hashes per second. Awaiting each fetch would block the WebSocket reader. `ensure_future` fires independent coroutines — the WebSocket stays responsive at any tx volume.
 
-### Web3 Data Analyst
+**Why SQLite by default?**
+Zero-config local development. The same codebase switches to PostgreSQL with a single env var change (`DATABASE_URL`). For portfolio reviewers: no Docker PostgreSQL setup needed to run tests.
 
-- Converts raw on-chain transfers into labeled, queryable whale events.
-- Provides `/stats` and `/transactions` endpoints for volume, token, and wallet-flow analysis.
-- Demonstrates exchange inflow/outflow interpretation through `from_exchange`, `to_exchange`, and `wallet_to_wallet` direction labels.
+**Why CoinGecko with 60s cache?**
+Each transaction check would otherwise require an HTTP round trip. At 200 tx/sec, that's 200 API calls/sec — CoinGecko's free tier limit is 50 calls/min. The 60s cache reduces this to 1 call/min with minimal price staleness.
 
-### Blockchain Data Engineer
-
-- Shows a streaming ingestion pattern from Ethereum WebSockets into durable SQL storage.
-- Uses SQLAlchemy models and environment-driven database URLs so the same code can run locally on SQLite or against PostgreSQL.
-- Includes health checks, reconnect-oriented feed design, test coverage, Docker packaging, and CI-friendly commands.
-
-### On-chain Analytics Developer
-
-- Implements address intelligence with known exchange, DeFi, bridge, and stablecoin labels.
-- Exposes API-ready analytics primitives that can power dashboards, alerting, or analyst workflows.
-- Includes deterministic demo seed data so reviewers can inspect the API and dashboard without live credentials.
-
-### Python Web3 Developer
-
-- Uses asynchronous Python patterns around Web3.py, HTTP requests, FastAPI, and Telegram notifications.
-- Separates feed ingestion, filtering, labeling, persistence, API, dashboard, and alert concerns into readable modules.
-- Demonstrates practical testing of whale threshold logic, token transfer decoding, price caching, and address labels.
+**Why web3.py AsyncHTTP for tx fetching (not WebSocket)?**
+Alchemy requires a split: WebSocket for subscriptions (`newPendingTransactions`), HTTP for individual data fetches. Both share the same API key.
 
 ---
 
-## Why This Project Matters for Crypto Jobs
+## Known Limitations
 
-Most backend developers can build CRUD APIs. Far fewer have worked directly with:
+- **Pending tx may drop** — a tx hash received via WebSocket may never be mined (MEV, gas too low). These are silently ignored when the fetch returns None.
+- **ERC-20 scope** — only USDT, USDC, and WETH are decoded. Other tokens (DAI, LINK, etc.) require adding entries to `KNOWN_TOKENS`.
+- **No historical backfill** — only monitors live transactions; no indexing of past blocks.
+- **17 known wallets** — labeling coverage is limited to the hardcoded registry. Integrate Etherscan Labels or Nansen API for broader coverage.
+- **Single chain** — Ethereum mainnet only. Polygon/Arbitrum/BSC would require separate feed instances.
 
-- **Live blockchain data** — streaming pending transactions via WebSocket.
-- **On-chain address intelligence** — labeling wallets as exchanges, DeFi protocols, bridges, or stablecoin treasuries.
-- **Low-latency event pipelines** — async components that detect, persist, expose, and alert on whale events.
-- **Production trading and risk patterns** — health checks, audit trails, reconnect logic, demo data, dashboards, and tests.
+---
 
-The project maps to the workflows used by on-chain analytics firms, crypto
-exchanges, DeFi protocols, and risk teams building real-time monitoring systems.
+## Roadmap
+
+- [ ] Deploy live demo with seeded data (Render / Railway)
+- [ ] Expand `KNOWN_TOKENS` to DAI, LINK, WBTC
+- [ ] PostgreSQL migration for production deployment
+- [ ] Webhook support: Discord, Slack
+- [ ] On-chain labeling API integration (Etherscan, Nansen)
+- [ ] Multi-chain feeds (Polygon, Arbitrum, BNB Chain)
+- [ ] Frontend dashboard in React/Next.js
+
+---
+
+## Use Cases
+
+This project demonstrates patterns used by:
+
+- **Crypto exchanges** — real-time large transaction monitoring and risk alerts
+- **DeFi protocols** — whale wallet tracking for liquidity event detection
+- **On-chain analytics firms** — address labeling and flow intelligence pipelines
+- **Trading desks** — exchange inflow/outflow signals for market direction
+
+Adaptable for any EVM chain, any USD threshold, and any delivery channel (Telegram, Discord, email, webhook).
 
 ---
 
 ## Disclaimer
 
-> This project is for **educational purposes only** and does not constitute financial advice.
+> This project is for **educational and portfolio purposes only** and does not constitute financial advice.
 > Monitoring on-chain data does not guarantee profitable trading decisions.
-> Always do your own research.
+
+---
+
+## License
+
+MIT
